@@ -117,7 +117,7 @@ func autopkgRunOneRecipeCheckDLFirst(recipe string, forceFull bool) {
 		return
 	}
 
-	log.Printf("finished full autopkg run run")
+	log.Printf("finished full autopkg run")
 }
 
 func autopkgRun(params []string, report *AutopkgRunReport) (output []byte, err error) {
@@ -155,6 +155,7 @@ func autopkgRun(params []string, report *AutopkgRunReport) (output []byte, err e
 
 	err = report.DecodePlist(f)
 	if err != nil {
+		f.Close()
 		return output, fmt.Errorf("error decoding report temp file: %v", err)
 	}
 
