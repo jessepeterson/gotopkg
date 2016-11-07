@@ -80,7 +80,7 @@ func main() {
 func autopkgRunOneRecipeCheckDLFirst(recipe string, forceFull bool) {
 	var report AutopkgRunReport
 
-	// run but only checkifirst
+	// run, but only check first
 	if !forceFull {
 		output, err := autopkgRun([]string{"-v", "-c", recipe}, &report)
 		log.Printf("check run: %v", report)
