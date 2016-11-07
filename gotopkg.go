@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"strings"
 	"syscall"
+	"time"
 )
 
 const RECIPE_FAILED_CODE = 70
@@ -70,11 +71,44 @@ func main() {
 		log.Fatal("must specify recipe arguments")
 	}
 
-	for _, arg := range flag.Args() {
-		autopkgRunOneRecipeCheckDLFirst(arg, false)
-	}
+	continuousRun(flag.Args())
 
 	os.Exit(0)
+}
+
+const TIME_DELAY time.Duration = time.Second * 2
+const RUN_EVERY time.Duration = time.Second * 15
+
+type recipeRunStatus struct {
+	name        string
+	lastStarted time.Time
+	firstRun    bool
+}
+
+func continuousRun(recipeNames []string) {
+	var recipes []recipeRunStatus
+
+	for _, recipeName := range recipeNames {
+		recipes = append(recipes, recipeRunStatus{recipeName, time.Now(), false})
+	}
+
+	var lastSince time.Duration
+
+	for {
+		for i, recipe := range recipes {
+			lastSince = time.Since(recipe.lastStarted)
+			if !recipe.firstRun || lastSince > RUN_EVERY {
+				recipes[i].firstRun = true
+				recipes[i].lastStarted = time.Now()
+				log.Printf("running recipe %s (first run or last run > %s [%s])", recipe.name, RUN_EVERY, lastSince)
+
+				autopkgRunOneRecipeCheckDLFirst(recipe.name, false)
+			}
+		}
+
+		log.Printf("sleeping %s", TIME_DELAY)
+		time.Sleep(TIME_DELAY)
+	}
 }
 
 func autopkgRunOneRecipeCheckDLFirst(recipe string, forceFull bool) {
