@@ -14,7 +14,8 @@ import (
 	"time"
 )
 
-const RECIPE_FAILED_CODE = 70
+// autopkg process exit code (RECIPE_FAILED_CODE in autopkg)
+const RecipeFailureExitCode = 70
 
 type AutopkgRunReport struct {
 	Failures []struct {
@@ -76,8 +77,10 @@ func main() {
 	os.Exit(0)
 }
 
-const TIME_DELAY time.Duration = time.Second * 2
-const RUN_EVERY time.Duration = time.Second * 15
+const (
+	delayNextCheck      time.Duration = time.Second * 2
+	runRecipeNoLessThan               = time.Second * 15
+)
 
 type recipeRunStatus struct {
 	name        string
@@ -97,17 +100,17 @@ func continuousRun(recipeNames []string) {
 	for {
 		for i, recipe := range recipes {
 			lastSince = time.Since(recipe.lastStarted)
-			if !recipe.firstRun || lastSince > RUN_EVERY {
+			if !recipe.firstRun || lastSince > runRecipeNoLessThan {
 				recipes[i].firstRun = true
 				recipes[i].lastStarted = time.Now()
-				log.Printf("running recipe %s (first run or last run > %s [%s])", recipe.name, RUN_EVERY, lastSince)
+				log.Printf("running recipe %s (first run or last run > %s [%s])", recipe.name, runRecipeNoLessThan, lastSince)
 
 				autopkgRunOneRecipeCheckDLFirst(recipe.name, false)
 			}
 		}
 
-		log.Printf("sleeping %s", TIME_DELAY)
-		time.Sleep(TIME_DELAY)
+		log.Printf("sleeping %s", delayNextCheck)
+		time.Sleep(delayNextCheck)
 	}
 }
 
@@ -174,7 +177,7 @@ func autopkgRun(params []string, report *AutopkgRunReport) (output []byte, err e
 			// rather innocuous reasons (and that autopkg itself has caught
 			// the problem) we'll refrain from passing on this error. besides
 			// it will be included in the report plist, too
-			if exitCode != RECIPE_FAILED_CODE {
+			if exitCode != RecipeFailureExitCode {
 				return output, fmt.Errorf("error executing autopkg (non-zero return %d): %v", exitCode, err)
 			}
 		} else {
