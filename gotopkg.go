@@ -73,8 +73,6 @@ func main() {
 	}
 
 	continuousRun(flag.Args())
-
-	os.Exit(0)
 }
 
 const (
