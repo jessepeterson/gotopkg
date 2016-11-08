@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/groob/plist"
-	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -43,15 +42,6 @@ type AutopkgRunReport struct {
 			SummaryText string   `plist:"summary_text"`
 		} `plist:"munki_importer_summary_result"`
 	} `plist:"summary_results"`
-}
-
-func (rpt *AutopkgRunReport) DecodePlist(r io.Reader) error {
-	err := plist.NewDecoder(r).Decode(&rpt)
-	if err != nil {
-		return fmt.Errorf("error decoding report from reader:", err)
-	}
-
-	return nil
 }
 
 var autopkg string
@@ -188,7 +178,7 @@ func autopkgRun(params []string, report *AutopkgRunReport) (output []byte, err e
 		return output, fmt.Errorf("error opening report temp file: %v", err)
 	}
 
-	err = report.DecodePlist(f)
+	err = plist.NewDecoder(f).Decode(report)
 	if err != nil {
 		f.Close()
 		return output, fmt.Errorf("error decoding report temp file: %v", err)
