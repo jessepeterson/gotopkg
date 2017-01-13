@@ -4,8 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"github.com/groob/plist"
+	"html"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -44,6 +46,31 @@ type AutopkgRunReport struct {
 	} `plist:"summary_results"`
 }
 
+type currentStatus int
+type statusUpdate int
+
+func statusMonitorAndReporter(upd <-chan statusUpdate, cur <-chan chan currentStatus) {
+	var theCurrentStatus int = 0
+	for {
+		select {
+		case updateV := <-upd:
+			theCurrentStatus += int(updateV)
+		case respChan := <-cur:
+			go func(x chan currentStatus, y currentStatus) {
+				x <- y
+			}(respChan, currentStatus(theCurrentStatus))
+		}
+	}
+}
+
+func readStatus(reqChan chan<- chan currentStatus) currentStatus {
+	backChan := make(chan currentStatus)
+	reqChan <- backChan
+	theActualStatus := <-backChan
+	close(backChan)
+	return theActualStatus
+}
+
 var autopkg string
 
 func main() {
@@ -62,7 +89,26 @@ func main() {
 		log.Fatal("must specify recipe arguments")
 	}
 
-	continuousRun(flag.Args())
+	statusUpdate := make(chan statusUpdate)
+	getStatus := make(chan chan currentStatus)
+
+	go statusMonitorAndReporter(statusUpdate, getStatus)
+
+	http.HandleFunc("/bar", func(w http.ResponseWriter, r *http.Request) {
+
+		theActualStatus := int(readStatus(getStatus))
+
+		fmt.Fprintf(w, "Hello, %d, %q", theActualStatus, html.EscapeString(r.URL.Path))
+	})
+
+	http.HandleFunc("/baz", func(w http.ResponseWriter, r *http.Request) {
+		// statusUpdate <- 1
+		fmt.Fprintf(w, "updated, %q", html.EscapeString(r.URL.Path))
+	})
+
+	go http.ListenAndServe(":8081", nil)
+
+	continuousRun(flag.Args(), statusUpdate)
 }
 
 const (
@@ -76,7 +122,7 @@ type recipeRunStatus struct {
 	firstRun    bool
 }
 
-func continuousRun(recipeNames []string) {
+func continuousRun(recipeNames []string, statusUpd chan<- statusUpdate) {
 	var recipes []recipeRunStatus
 
 	for _, recipeName := range recipeNames {
@@ -94,6 +140,8 @@ func continuousRun(recipeNames []string) {
 				log.Printf("running recipe %s (first run or last run > %s [%s])", recipe.name, runRecipeNoLessThan, lastSince)
 
 				autopkgRunOneRecipeCheckDLFirst(recipe.name, false)
+
+				statusUpd <- 1
 			}
 		}
 
